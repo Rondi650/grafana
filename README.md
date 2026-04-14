@@ -10,10 +10,10 @@ Esta stack automatiza o monitoramento de recursos do sistema e containers.
 | Serviço | Descrição | Porta |
 |---|---|---|
 | **Grafana** | Visualização de dashboards | `3000` |
-| **Prometheus** | Armazenamento de métricas temporais | — |
-| **Loki & Promtail** | Agregação e processamento de logs | — |
-| **Node Exporter** | Coleta de métricas do host (Hardware) | — |
-| **cAdvisor** | Coleta de métricas específicas de containers | — |
+| **Prometheus** | Armazenamento de métricas temporais | `9090` |
+| **Loki & Promtail** | Agregação e processamento de logs | `3100` |
+| **Node Exporter** | Coleta de métricas do host (Hardware) | `9100` |
+| **cAdvisor** | Coleta de métricas específicas de containers | `8080` |
 
 ---
 
