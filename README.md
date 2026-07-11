@@ -1,112 +1,114 @@
 # Monitoring Stack (Docker & Cloudflare)
 
-Infraestrutura de observabilidade para coleta de métricas e logs utilizando Docker Compose.
-Esta stack automatiza o monitoramento de recursos do sistema e containers.
+Observabilidade completa: métricas (Prometheus) + logs (Loki) via LGTM stack.
 
 ---
 
-## Serviços
+## 🏗️ Arquitetura
 
-| Serviço | Descrição | Porta |
-|---|---|---|
-| **Grafana** | Visualização de dashboards | `3000` |
-| **Prometheus** | Armazenamento de métricas temporais | `9090` |
-| **Loki & Promtail** | Agregação e processamento de logs | `3100` |
-| **Node Exporter** | Coleta de métricas do host (Hardware) | `9100` |
-| **cAdvisor** | Coleta de métricas específicas de containers | `8080` |
+![Arquitetura da Stack](./image_copy.png)
 
 ---
 
-## Início Rápido
+## 📋 Componentes
 
-Execute o comando abaixo no diretório raiz para subir os serviços:
+### Core (Armazenamento)
+
+| Componente           | Stack   | Função                            | Porta |
+| -------------------- | ------- | ----------------------------------- | ----- |
+| **Grafana**    | LGTM ✅ | Visualização                      | 3000  |
+| **Prometheus** | LGTM ❌ | Banco de métricas (CNCF)           | 9090  |
+| **Loki**       | LGTM ✅ | Banco de logs                       | 3100  |
+| **Tempo**      | LGTM ✅ | Traces*(futuro)*                  | -     |
+| **Mimir**      | LGTM ✅ | Prometheus escalável*(opcional)* | -     |
+
+### Coleta (Exporters & Agents)
+
+| Componente              | Origem       | Função                | Porta | Destino    |
+| ----------------------- | ------------ | ----------------------- | ----- | ---------- |
+| **Node Exporter** | CNCF         | Métricas do host       | 9100  | Prometheus |
+| **cAdvisor**      | Google       | Métricas de containers | 8080  | Prometheus |
+| **Promtail**      | Grafana Labs | Coletor de logs         | -     | Loki       |
+
+---
+
+## ⚡ Início Rápido
 
 ```bash
 docker-compose up -d
 ```
 
-Acesso local: [http://localhost:3000](http://localhost:3000) — credenciais padrão: `admin` / `admin`
-
-
-Exemplo de dashboard:
-![Exemplo de Dashboard](./image.png)
+Acesse: http://localhost:3000
+Login: `admin` / `admin`
 
 ---
 
-## Cloudflare Tunnel — Acesso Externo (Opcional)
-
-> **Pré-requisito:** esta etapa exige um **domínio próprio registrado** e uma conta no
-> [Cloudflare](https://dash.cloudflare.com). Sem essas condições, o Grafana permanece
-> acessível apenas localmente via `localhost:3000`.
-
-A exposição segura do Grafana para a internet é feita através do painel
-**Cloudflare Zero Trust → Networks → Tunnels**.
-
-### Passo a Passo no Painel
-
-Acesse o painel em:
-
-```
-https://dash.cloudflare.com/<ACCOUNT_ID>/one/networks/connectors/cloudflare-tunnels
-```
-
-> Substitua `<ACCOUNT_ID>` pelo ID da sua conta Cloudflare, visível na URL após o login.
-
----
-
-**1. Criar o Tunnel**
-No painel, clique em **"Create a tunnel"** e dê um nome (ex: `monitoring`).
-
-**2. Instalação do Conector**
-Selecione a arquitetura do seu servidor (ex: `linux/amd64`) e instale o binário `cloudflared`:
+## 🌐 Acesso Externo (Cloudflare)
 
 ```bash
-# Exemplo para Debian/Ubuntu
+# Instalar cloudflared
 curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-  -o /usr/local/bin/cloudflared
-chmod +x /usr/local/bin/cloudflared
+  -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+
+# Autenticar (substitua pelo token do painel)
+cloudflared service install <TOKEN>
 ```
 
-**3. Autenticação do Servidor**
-Copie e execute o comando exibido em *"Install and run a connector"*. Ele contém o token
-único do seu tunnel:
+Configure no painel Cloudflare:
+**Zero Trust → Networks → Tunnels → Public Hostname**
 
-```bash
-cloudflared service install <TOKEN_UNICO_GERADO_PELO_PAINEL>
-```
-
-**4. Configuração do Public Hostname**
-Após o conector aparecer como **Connected**, acesse a aba **Public Hostname** e adicione:
-
-| Campo | Valor |
-|---|---|
-| Subdomain | `grafana` |
-| Domain | `seudominio.com` |
-| Service Type | `HTTP` |
-| URL | `localhost:3000` |
-
-O Grafana ficará acessível publicamente em `https://grafana.seudominio.com`, com
-TLS gerenciado automaticamente pelo Cloudflare.
+| Campo     | Valor                   |
+| --------- | ----------------------- |
+| Subdomain | `grafana`             |
+| Domain    | `seudominio.com`      |
+| Service   | `HTTP localhost:3000` |
 
 ---
 
-## Métricas Disponíveis
-
-Baseado no dashboard configurado, a stack monitora:
-
-- **CPU** — Carga do sistema (Load), Busy User, System e I/O Wait
-- **Memória** — Uso de RAM física, Cache/Buffer e utilização de SWAP
-- **Rede** — Tráfego de entrada e saída (Rx/Tx) por interface (`eth0`, `lo`)
-- **Disco** — Espaço ocupado em `/`, `/boot` e `/run`
-
----
-
-## Manutenção
+## 🔧 Comandos
 
 ```bash
-# Visualizar logs em tempo real
-docker-compose logs -f
+# Logs
+docker-compose logs -f [serviço]
 
-# Encerrar todos os serviços
+# Restart
+docker-compose restart [serviço]
+
+# Parar
 docker-compose down
+
+# Limpar tudo (⚠️ perde dados)
+docker-compose down -v
 ```
+
+---
+
+## 📊 Fluxo de Dados
+
+| Origem        | → | Destino    | Protocolo | Método       | Frequência |
+| ------------- | -- | ---------- | --------- | ------------- | ----------- |
+| Node Exporter | → | Prometheus | HTTP      | Pull (scrape) | 15s         |
+| cAdvisor      | → | Prometheus | HTTP      | Pull (scrape) | 15s         |
+| Promtail      | → | Loki       | HTTP      | Push          | Real-time   |
+| Prometheus    | → | Grafana    | HTTP      | Query         | On-demand   |
+| Loki          | → | Grafana    | HTTP      | Query         | On-demand   |
+
+---
+
+## 🎯 Diferença: Node Exporter vs Promtail
+
+| Aspecto             | Node Exporter        | Promtail              |
+| ------------------- | -------------------- | --------------------- |
+| **Coleta**    | Métricas (números) | Logs (texto)          |
+| **Fonte**     | /proc, /sys          | /var/log, docker logs |
+| **Direção** | Prometheus PUXA      | Promtail EMPURRA      |
+| **Porta**     | 9100                 | Interno apenas        |
+| **Destino**   | Prometheus           | Loki                  |
+
+---
+
+## 📝 Métricas Disponíveis
+
+**Node Exporter**: CPU, memória, disco, rede, load
+**cAdvisor**: CPU, memória, rede, disco **por container**
+**Promtail**: /var/log/syslog, auth.log, nginx/, containers/*-json.log
